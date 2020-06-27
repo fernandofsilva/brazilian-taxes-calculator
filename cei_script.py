@@ -84,14 +84,14 @@ class Calculator:
         else:
             return df_sell
 
-    def fii_etf(self):
+    def fii_etf(self, df):
         """show a new df from archive formated, after import and cleanned, with fii_etf"""
-        df_fii_etf = self.__archive_cei_records[self.__archive_cei_records['Category'] == 'FII-ETF']
+        df_fii_etf = df[df['Category'] == 'FII-ETF']
         return df_fii_etf
 
-    def stocks(self):
+    def stocks(self, df):
         """show a new df from archive formated, after import and cleanned, with stocks"""
-        df_stocks = self.__archive_cei_records[self.__archive_cei_records['Category'] == 'ACAO']
+        df_stocks = df[df['Category'] == 'ACAO']
         return df_stocks
 
     # def find_tickers_byrange(self):
@@ -118,7 +118,7 @@ class Calculator:
                 number -= number_up
         return [number, amount_price, average_price]
 
-    def profit_loss_unique(self, df_records, df_month):
+    def profit_loss_unique_ticker(self, df_records, df_month):
         """Look for two dfs, one with all records by one ticker,
                 another with df_sell (self.month_sell_amount('df')).
             Find one range, using df_sell's index (just one row),
@@ -137,11 +137,56 @@ class Calculator:
 
     def profit_loss_month(self):
         """Take all tickers of df_sell and use self.profit_loss_unique() for them,
-                after, sum all profits or loss of them, finding the result of month"""
-        profit_loss_month = 0
-        df_sell = self.month_sell_amount('df')
-        for i in df_sell['Ticker'].unique():
+                after, sum all profits or loss of them, finding the result of month.
+            This function do the same loop, for two dfs['Category'](fii_etf nd stocks).
+            Return the results in two lists (stocks and fii_etf),
+                for example [profit or loss, tax]"""
+        profit_loss_month_stocks = 0
+        profit_loss_month_fii_etf = 0
+        df_temp = self.month_sell_amount('df')
+        df_sell_stocks = self.stocks(df_temp)
+        df_sell_fii_etf = self.fii_etf(df_temp)
+
+        for i in df_sell_stocks['Ticker'].unique():
             df_records = self.__archive_cei_records[self.__archive_cei_records['Ticker'] == i]
-            df_month = df_sell[df_sell['Ticker'] == i]
-            profit_loss_month += float(self.profit_loss_unique(df_records, df_month))
-        return float(profit_loss_month)
+            df_month = df_sell_stocks[df_sell_stocks['Ticker'] == i]
+            profit_loss_month_stocks += float(self.profit_loss_unique_ticker(df_records, df_month))
+        tax_stocks = self.taxes_stocks(df_sell_stocks, profit_loss_month_stocks)
+
+        for i in df_sell_fii_etf['Ticker'].unique():
+            df_records = self.__archive_cei_records[self.__archive_cei_records['Ticker'] == i]
+            df_month = df_sell_fii_etf[df_sell_fii_etf['Ticker'] == i]
+            profit_loss_month_fii_etf += float(self.profit_loss_unique_ticker(df_records, df_month))
+        tax_fii_etf = self.taxes_fii_etf(df_sell_fii_etf, profit_loss_month_fii_etf)
+
+        return [print([profit_loss_month_stocks, tax_stocks],
+                      [profit_loss_month_fii_etf, tax_fii_etf])]
+
+    def taxes_stocks(self, df, value):
+        """Look for one df (set a df with just stocks['Category']) and for one value (result, profit or loss).
+            After apply the Brazillian Rule for Stocks, Swing Trade"""
+        if df['ValorTotal'].sum() > 20000:
+            if value > 0:
+                return value * 0.15
+            else:
+                return 'Loss'
+        else:
+            if value >= 0:
+                return 'Free'
+            else:
+                return 'Loss'
+
+    def taxes_fii_etf(self, df, value):
+        """Look for one df (set a df with just fii_etf['Category']) and for one value (result, profit or loss).
+            After apply the Brazillian Rule for FII or ETF"""
+        if df['ValorTotal'].sum() > 20000:
+            return value * 0,20
+        elif value == 0:
+            return 'Free'
+        else:
+            return 'Loss'
+
+
+
+
+
