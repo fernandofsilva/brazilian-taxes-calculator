@@ -164,10 +164,10 @@ class Calculator:
 
     def taxes_stocks(self, df, value):
         """Look for one df (set a df with just stocks['Category']) and for one value (result, profit or loss).
-            After apply the Brazillian Rule for Stocks, Swing Trade"""
+            After apply the Brazilian Rule for Stocks, Swing Trade"""
         if df['ValorTotal'].sum() > 20000:
             if value > 0:
-                return value * 0.15
+                return round(value * 0.15, 3)
             else:
                 return 'Loss'
         else:
@@ -178,15 +178,17 @@ class Calculator:
 
     def taxes_fii_etf(self, df, value):
         """Look for one df (set a df with just fii_etf['Category']) and for one value (result, profit or loss).
-            After apply the Brazillian Rule for FII or ETF"""
-        if df['ValorTotal'].sum() > 20000:
-            return value * 0,20
-        elif value == 0:
-            return 'Free'
+            After apply the Brazilian Rule for FII or ETF"""
+        if df['ValorTotal'].sum() > 0:
+            if value > 0:
+                return round(value * 0.20, 3)
+            else:
+                return 'Loss'
         else:
-            return 'Loss'
-
-
+            if value >= 0:
+                return 'Free'
+            else:
+                return 'Loss'
 
 
 

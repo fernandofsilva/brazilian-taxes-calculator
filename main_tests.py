@@ -1,6 +1,6 @@
 from cei_script import Calculator
 
-relatorio = Calculator(r'C:\Users\bsimm\Downloads\InfoCEI(5).xls')
+relatorio = Calculator(r'C:\Users\bsimm\Downloads\InfoCEI_teste.xls')
 
 relatorio.import_archive()
 
