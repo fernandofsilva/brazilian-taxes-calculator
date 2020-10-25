@@ -2,7 +2,6 @@ from typing import Dict, Any, Union
 
 from pandas import to_datetime, Series, DataFrame
 
-
 class Calculator:
 
     def __init__(self, archive):
@@ -37,29 +36,35 @@ class Calculator:
         """show a df from archive formated, after import and cleanned"""
         print(self.__archive_cei_records)
 
-    def df_records_csv(self):
-        """show a df(csv) from archive formated, after import and cleanned"""
-        return self.__archive_cei_records.to_csv('df_formated.csv', encoding='latin-1', index=False)
-
     def dfs_records_csv(self):
         """show two dfs(csv) from archive formated, after import and cleanned,
         one with ['Category'] == 'FII'
          another ['Category'] == 'ACAO-ETF'"""
-        df1 = self.fii()
-        df2 = self.stocks_etf()
+        df = self.__archive_cei_records
+        df1 = self.fii(df)
+        df2 = self.stocks(df)
+        df3 = self.etf(df)
         return df1.to_csv('df_formated_fii.csv', encoding='latin-1', index=False), \
-               df2.to_csv('df_formated_stocks_etf.csv', encoding='latin-1', index=False)
+               df2.to_csv('df_formated_stocks.csv', encoding='latin-1', index=False), \
+               df3.to_csv('df_formated_etf.csv', encoding='latin-1', index=False), \
+               df.to_csv('df_formated_all.csv', encoding='latin-1', index=False)
 
     def check_type(self, value):
-        """look for a pattern and categorize in a type (acao_etf ou fii) CI = FII or ETF"""
+        """look for a pattern and categorize in a type (acao_etf ou fii) """
         import re
-        pattern = "[F]{1}[II]{1}(\b){,1}"
+        patternci = "[C]{1}[I]{1}"
+        patternfii = "[F]{1}[II]{2}(\b){,1}"
+        validateci = re.search(patternci, value)
         try:
-            validate = re.search(pattern, value)
-            validate.group()[1:3] == 'CI'
-            return 'FII'
+            validateci.group() == 'CI'
+            try:
+                validatefii = re.search(patternfii, value)
+                validatefii.group() == 'FII'
+                return 'FII'
+            except:
+                return 'ETF'
         except:
-            return 'ACAO-ETF'
+            return 'ACAO'
 
     def insert_type_column(self):
         """loop to include one column with the category in df_formated"""
@@ -89,9 +94,14 @@ class Calculator:
         df_fii_etf = df[df['Category'] == 'FII']
         return df_fii_etf
 
-    def stocks_etf(self, df):
+    def stocks(self, df):
         """show a new df from archive formated, after import and cleanned, with stocks_etf"""
-        df_stocks = df[df['Category'] == 'ACAO-ETF']
+        df_stocks = df[df['Category'] == 'ACAO']
+        return df_stocks
+
+    def etf(self, df):
+        """show a new df from archive formated, after import and cleanned, with stocks_etf"""
+        df_stocks = df[df['Category'] == 'ETF']
         return df_stocks
 
     # def find_tickers_byrange(self):
@@ -138,20 +148,28 @@ class Calculator:
     def profit_loss_month(self):
         """Take all tickers of df_sell and use self.profit_loss_unique() for them,
                 after, sum all profits or loss of them, finding the result of month.
-            This function do the same loop, for two dfs['Category'](fii_etf nd stocks).
-            Return the results in two lists (stocks_etf and fii),
+            This function do the same loop, for two dfs['Category'](fii, etf and stocks).
+            Return the results in tree lists (stocks, fii and etf),
                 for example [profit or loss, tax]"""
-        profit_loss_month_stocks_etf = 0
+        profit_loss_month_stocks = 0
         profit_loss_month_fii = 0
+        profit_loss_month_etf = 0
         df_temp = self.month_sell_amount('df')
-        df_sell_stocks_etf = self.stocks_etf(df_temp)
+        df_sell_stocks = self.stocks(df_temp)
         df_sell_fii = self.fii(df_temp)
+        df_sell_etf = self.etf(df_temp)
 
-        for i in df_sell_stocks_etf['Ticker'].unique():
+        for i in df_sell_stocks['Ticker'].unique():
             df_records = self.__archive_cei_records[self.__archive_cei_records['Ticker'] == i]
-            df_month = df_sell_stocks_etf[df_sell_stocks_etf['Ticker'] == i]
-            profit_loss_month_stocks_etf += float(self.profit_loss_unique_ticker(df_records, df_month))
-        tax_stocks_etf = self.taxes_stocks_etf(df_sell_stocks_etf, profit_loss_month_stocks_etf)
+            df_month = df_sell_stocks[df_sell_stocks['Ticker'] == i]
+            profit_loss_month_stocks += float(self.profit_loss_unique_ticker(df_records, df_month))
+        tax_stocks = self.taxes_stocks(df_sell_stocks, profit_loss_month_stocks)
+
+        for i in df_sell_etf['Ticker'].unique():
+            df_records = self.__archive_cei_records[self.__archive_cei_records['Ticker'] == i]
+            df_month = df_sell_etf[df_sell_etf['Ticker'] == i]
+            profit_loss_month_etf += float(self.profit_loss_unique_ticker(df_records, df_month))
+        tax_etf = self.taxes_etf(df_sell_etf, profit_loss_month_etf)
 
         for i in df_sell_fii['Ticker'].unique():
             df_records = self.__archive_cei_records[self.__archive_cei_records['Ticker'] == i]
@@ -159,12 +177,13 @@ class Calculator:
             profit_loss_month_fii += float(self.profit_loss_unique_ticker(df_records, df_month))
         tax_fii = self.taxes_fii(df_sell_fii, profit_loss_month_fii)
 
-        return [print([profit_loss_month_stocks_etf, tax_stocks_etf],
-                      [profit_loss_month_fii, tax_fii])]
+        return print(f"Resultado Ações: {round(profit_loss_month_stocks, 3)} | Imposto Ações: {tax_stocks}\n"
+                     f"Resultado FII: {round(profit_loss_month_fii, 3)} | Imposto FII: {tax_fii}\n"
+                     f"Resultado ETF: {round(profit_loss_month_etf, 3)} | Imposto ETF: {tax_etf}")
 
-    def taxes_stocks_etf(self, df, value):
+    def taxes_stocks(self, df, value):
         """Look for one df (set a df with just stocks['Category']) and for one value (result, profit or loss).
-            After apply the Brazilian Rule for Stocks or ETF, Swing Trade"""
+            After apply the Brazilian Rule for Stocks, Swing Trade"""
         if df['ValorTotal'].sum() > 20000:
             if value > 0:
                 return round(value * 0.15, 3)
@@ -190,5 +209,18 @@ class Calculator:
             else:
                 return 'Loss'
 
+    def taxes_etf(self, df, value):
+        """Look for one df (set a df with just stocks['Category']) and for one value (result, profit or loss).
+            After apply the Brazilian Rule for ETF, Swing Trade"""
+        if df['ValorTotal'].sum() > 0:
+            if value > 0:
+                return round(value * 0.15, 3)
+            else:
+                return 'Loss'
+        else:
+            if value >= 0:
+                return 'Free'
+            else:
+                return 'Loss'
 
 
